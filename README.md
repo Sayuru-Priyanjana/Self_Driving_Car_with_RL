@@ -4,6 +4,11 @@ A 2D top-down self-driving car simulation trained end-to-end with
 **Proximal Policy Optimization (PPO)** from Stable-Baselines3.
 Runs entirely on CPU — no GPU required.
 
+<video width="700" controls autoplay loop muted>
+  <source src="./RL.mkv" type="video/mkv">
+  Your browser does not support the video tag.
+</video>
+
 ```
 self_driving_car/
 ├── car.py        — Car physics + raycasting sensors
