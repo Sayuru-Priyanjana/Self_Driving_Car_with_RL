@@ -5,7 +5,7 @@ A 2D top-down self-driving car simulation trained end-to-end with
 Runs entirely on CPU — no GPU required.
 
 <video width="700" controls autoplay loop muted>
-  <source src="./RL.mkv" type="video/mkv">
+  <source src="./RL_Car.mp4" type="video/mp4">
   Your browser does not support the video tag.
 </video>
 
