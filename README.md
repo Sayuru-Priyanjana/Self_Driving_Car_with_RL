@@ -5,9 +5,7 @@ A 2D top-down self-driving car simulation trained end-to-end with
 Runs entirely on CPU — no GPU required.
 
 
-<video width="700" controls loop muted>
-  <source src="https://raw.githubusercontent.com/Sayuru-Priyanjana/Self_Driving_Car_with_RL/main/RL_Car.mp4" type="video/mp4">
-</video>
+![Self Driving Car Demo](RL_Car.gif)
 
 ```
 self_driving_car/
