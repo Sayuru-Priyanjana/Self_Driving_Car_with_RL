@@ -4,10 +4,7 @@ A 2D top-down self-driving car simulation trained end-to-end with
 **Proximal Policy Optimization (PPO)** from Stable-Baselines3.
 Runs entirely on CPU — no GPU required.
 
-<video width="700" controls autoplay loop muted>
-  <source src="./RL_Car.mp4" type="video/mp4">
-  Your browser does not support the video tag.
-</video>
+[![Watch Demo](thumbnail.png)](https://raw.githubusercontent.com/Sayuru-Priyanjana/Self_Driving_Car_with_RL/main/RL_Car.mp4)
 
 ```
 self_driving_car/
