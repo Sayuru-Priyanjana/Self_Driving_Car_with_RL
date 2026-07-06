@@ -47,13 +47,15 @@ class CarEnv(gym.Env):
                  render_mode:     str  = None,
                  max_steps:       int  = 2000,
                  randomise_spawn: bool = False,
-                 slow_mo:         bool = False):
+                 slow_mo:         bool = False,
+                 show_sensors:    bool = True):
 
         super().__init__()
         self.render_mode     = render_mode
         self.max_steps       = max_steps
         self.randomise_spawn = randomise_spawn
         self.slow_mo         = slow_mo
+        self.show_sensors    = show_sensors
 
         # Observation / action spaces
         low  = np.array([0, 0, 0, 0, -1], dtype=np.float32)
@@ -172,7 +174,7 @@ class CarEnv(gym.Env):
 
         self._screen.fill((34, 139, 34))
         self.track.draw(self._screen)
-        self.car.draw(self._screen, draw_sensors=True)
+        self.car.draw(self._screen, draw_sensors=self.show_sensors)
 
         self._hud.draw(
             self._screen,

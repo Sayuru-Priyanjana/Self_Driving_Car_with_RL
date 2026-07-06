@@ -36,8 +36,7 @@ def parse_args():
     return p.parse_args()
 
 
-def run_episode(model, env, deterministic: bool = True,
-                show_sensors: bool = True) -> dict:
+def run_episode(model, env, deterministic: bool = True) -> dict:
     """Run one episode; return stats dict."""
     obs, _ = env.reset()
     total_r = 0.0
@@ -92,6 +91,7 @@ def main():
         max_steps       = 3000,
         randomise_spawn = args.random_spawn,
         slow_mo         = args.slow_mo,
+        show_sensors    = not args.no_sensors,
     )
 
     all_rewards = []
@@ -99,7 +99,6 @@ def main():
         stats = run_episode(
             model, env,
             deterministic = args.deterministic,
-            show_sensors  = not args.no_sensors,
         )
         all_rewards.append(stats["total_reward"])
         print(f"  Episode {ep:>2d}:  "
