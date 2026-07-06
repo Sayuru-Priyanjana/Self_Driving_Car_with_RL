@@ -41,14 +41,14 @@ class CarEnv(gym.Env):
     W_CHECKPOINT =  5.0
     W_CRASH      = -10.0
     W_TIME       = -0.01
-    MAX_CENTER_DIST = 40.0   # px — road half-width; beyond → danger
 
     def __init__(self,
                  render_mode:     str  = None,
                  max_steps:       int  = 2000,
                  randomise_spawn: bool = False,
                  slow_mo:         bool = False,
-                 show_sensors:    bool = True):
+                 show_sensors:    bool = True,
+                 track_type:      str  = "oval"):
 
         super().__init__()
         self.render_mode     = render_mode
@@ -56,6 +56,7 @@ class CarEnv(gym.Env):
         self.randomise_spawn = randomise_spawn
         self.slow_mo         = slow_mo
         self.show_sensors    = show_sensors
+        self.track_type      = track_type
 
         # Observation / action spaces
         low  = np.array([0, 0, 0, 0, -1], dtype=np.float32)
@@ -68,7 +69,9 @@ class CarEnv(gym.Env):
         )
 
         # Track (shared; reset_checkpoints called each episode)
-        self.track = Track(width=800, height=600)
+        self.track = Track(width=800, height=600, track_type=track_type)
+        # centre-line reward saturates at half the actual road width
+        self.max_center_dist = self.track.road_w / 2
 
         # Build the track surface immediately (headless — no display needed)
         self._ensure_headless_surface()
@@ -140,7 +143,7 @@ class CarEnv(gym.Env):
 
         # centre-line proximity
         dist_c = self.track.dist_to_center(self.car.x, self.car.y)
-        centre_ratio = max(0.0, 1.0 - dist_c / self.MAX_CENTER_DIST)
+        centre_ratio = max(0.0, 1.0 - dist_c / self.max_center_dist)
         reward += self.W_CENTER * centre_ratio
 
         # checkpoint
