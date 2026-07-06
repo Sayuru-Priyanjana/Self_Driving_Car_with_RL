@@ -24,7 +24,8 @@ from utils import plot_rewards, RewardLogger
 
 def parse_args():
     p = argparse.ArgumentParser(description="Test trained PPO car agent")
-    p.add_argument("--model",        type=str, default="models/ppo_car.zip")
+    p.add_argument("--model",        type=str, default=None,
+                   help="Model zip path (default: derived from --track)")
     p.add_argument("--episodes",     type=int, default=5)
     p.add_argument("--slow-mo",      action="store_true",
                    help="Run at 15 fps instead of 60")
@@ -33,11 +34,13 @@ def parse_args():
                    help="Hide sensor rays")
     p.add_argument("--deterministic",action="store_true",
                    help="Use deterministic policy actions")
+    p.add_argument("--track", type=str, default="oval",
+                   choices=["oval", "chicane"],
+                   help="Track layout to test on (default: oval)")
     return p.parse_args()
 
 
-def run_episode(model, env, deterministic: bool = True,
-                show_sensors: bool = True) -> dict:
+def run_episode(model, env, deterministic: bool = True) -> dict:
     """Run one episode; return stats dict."""
     obs, _ = env.reset()
     total_r = 0.0
@@ -69,22 +72,26 @@ def run_episode(model, env, deterministic: bool = True,
 def main():
     args = parse_args()
 
-    if not os.path.exists(args.model):
-        print(f"[test] ERROR: Model file not found: {args.model}")
-        print("[test] Train first with:  python train.py")
+    suffix = "" if args.track == "oval" else f"_{args.track}"
+    model_path = args.model or f"models/ppo_car{suffix}.zip"
+
+    if not os.path.exists(model_path):
+        print(f"[test] ERROR: Model file not found: {model_path}")
+        print(f"[test] Train first with:  python train.py --track {args.track}")
         sys.exit(1)
 
     print("=" * 50)
     print("  PPO Self-Driving Car — Testing")
     print("=" * 50)
-    print(f"  Model    : {args.model}")
+    print(f"  Track    : {args.track}")
+    print(f"  Model    : {model_path}")
     print(f"  Episodes : {args.episodes}")
     print(f"  Slow-mo  : {args.slow_mo}")
     print("=" * 50)
     print("\n[test] Press ESC or close the window to quit.\n")
 
     # load model
-    model = PPO.load(args.model, device="cpu")
+    model = PPO.load(model_path, device="cpu")
 
     # build env with rendering
     env = CarEnv(
@@ -92,6 +99,8 @@ def main():
         max_steps       = 3000,
         randomise_spawn = args.random_spawn,
         slow_mo         = args.slow_mo,
+        show_sensors    = not args.no_sensors,
+        track_type      = args.track,
     )
 
     all_rewards = []
@@ -99,7 +108,6 @@ def main():
         stats = run_episode(
             model, env,
             deterministic = args.deterministic,
-            show_sensors  = not args.no_sensors,
         )
         all_rewards.append(stats["total_reward"])
         print(f"  Episode {ep:>2d}:  "
@@ -117,8 +125,8 @@ def main():
     if all_rewards:
         os.makedirs("plots", exist_ok=True)
         plot_rewards(all_rewards, window=min(5, len(all_rewards)),
-                     save_path="plots/test_rewards.png")
-        print("[test] Test-reward plot saved → plots/test_rewards.png")
+                     save_path=f"plots/test_rewards{suffix}.png")
+        print(f"[test] Test-reward plot saved → plots/test_rewards{suffix}.png")
 
 
 if __name__ == "__main__":
