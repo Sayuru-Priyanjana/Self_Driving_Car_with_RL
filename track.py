@@ -85,6 +85,84 @@ def _build_curved_track(W=800, H=600, margin=60, road_w=90, r_out=140):
     return outer, inner, center, checkpoints, (spawn_x, spawn_y, spawn_angle)
 
 
+def _chicane_offset(t, amp, start=0.1, end=0.9):
+    """
+    Lateral S-curve offset for a chicane cut into a straight section.
+    Zero outside [start, end] so it joins the flat lead-in/out without a
+    position discontinuity; swings +amp then -amp then back to 0 inside.
+    """
+    if t <= start or t >= end:
+        return 0.0
+    u = (t - start) / (end - start)
+    return amp * math.sin(2 * math.pi * u)
+
+
+def _build_chicane_track(W=800, H=600, margin=100, road_w=90, r_out=130):
+    """
+    Same rounded-rectangle loop shape as _build_curved_track, but tighter
+    (smaller r_out) and with an S-curve chicane cut into the top straight.
+    The chicane offset is added identically to every concentric loop
+    (outer/inner/center), so road width along the top straight stays
+    exact — same convention the plain straights already use elsewhere.
+    Returns outer_pts, inner_pts, center_pts, checkpoints, spawn(x,y,angle).
+    """
+    r_in = r_out - road_w
+    r_cen = r_out - road_w / 2
+
+    ol, ot = margin, margin
+    or_, ob = W - margin, H - margin
+
+    # Centers of the four corners
+    tl_c = (ol + r_out, ot + r_out)
+    tr_c = (or_ - r_out, ot + r_out)
+    br_c = (or_ - r_out, ob - r_out)
+    bl_c = (ol + r_out, ob - r_out)
+
+    amp = road_w * 0.33   # chicane lateral swing, in px — gentle enough for the
+                           # car's fixed-throttle physics to actually track
+
+    def make_loop(r, steps_arc=15, steps_straight=15, top_steps=40):
+        pts = []
+        # Top straight (left to right) — with chicane
+        x0, x1 = tl_c[0], tr_c[0]
+        y0 = tl_c[1] - r
+        for i in range(top_steps):
+            t = i / top_steps
+            x = x0 + (x1 - x0) * t
+            y = y0 + _chicane_offset(t, amp)
+            pts.append((x, y))
+        # Top-Right corner
+        pts += _arc_pts(tr_c[0], tr_c[1], r, -math.pi/2, 0, steps_arc)
+        # Right straight (top to bottom)
+        pts += _lerp_pts((tr_c[0] + r, tr_c[1]), (br_c[0] + r, br_c[1]), steps_straight)
+        # Bottom-Right corner
+        pts += _arc_pts(br_c[0], br_c[1], r, 0, math.pi/2, steps_arc)
+        # Bottom straight (right to left)
+        pts += _lerp_pts((br_c[0], br_c[1] + r), (bl_c[0], bl_c[1] + r), steps_straight)
+        # Bottom-Left corner
+        pts += _arc_pts(bl_c[0], bl_c[1], r, math.pi/2, math.pi, steps_arc)
+        # Left straight (bottom to top)
+        pts += _lerp_pts((bl_c[0] - r, bl_c[1]), (tl_c[0] - r, tl_c[1]), steps_straight)
+        # Top-Left corner
+        pts += _arc_pts(tl_c[0], tl_c[1], r, math.pi, math.pi*1.5, steps_arc)
+        return pts
+
+    outer = make_loop(r_out, steps_arc=15, steps_straight=20, top_steps=40)
+    inner = make_loop(r_in, steps_arc=15, steps_straight=20, top_steps=40)
+    center = make_loop(r_cen, steps_arc=20, steps_straight=20, top_steps=40)
+
+    n_cp = 12
+    step = max(1, len(center) // n_cp)
+    checkpoints = [center[i * step] for i in range(n_cp)]
+
+    # Spawn: start of the top straight (before the chicane begins), pointing RIGHT
+    spawn_x = tl_c[0] + 15
+    spawn_y = float(tl_c[1] - r_cen)
+    spawn_angle = 0.0
+
+    return outer, inner, center, checkpoints, (spawn_x, spawn_y, spawn_angle)
+
+
 # ---------------------------------------------------------------------------
 # Wall-segment helper (for raycasting)
 # ---------------------------------------------------------------------------
@@ -97,18 +175,28 @@ def _poly_to_segments(pts):
 # Track class
 # ---------------------------------------------------------------------------
 
+TRACK_BUILDERS = {
+    "oval":    _build_curved_track,
+    "chicane": _build_chicane_track,
+}
+
+
 class Track:
     CHECKPOINT_DIST = 40
 
-    def __init__(self, width: int = 800, height: int = 600):
+    def __init__(self, width: int = 800, height: int = 600,
+                 track_type: str = "oval", road_w: int = 90):
         self.W = width
         self.H = height
+        self.track_type = track_type
+        self.road_w = road_w
 
+        builder = TRACK_BUILDERS.get(track_type, _build_curved_track)
         (self.outer_pts,
          self.inner_pts,
          self.center_pts,
          self._cp_positions,
-         self._spawn) = _build_curved_track(width, height)
+         self._spawn) = builder(width, height, road_w=road_w)
 
         self.wall_segments = (
             _poly_to_segments(self.outer_pts) +

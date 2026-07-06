@@ -69,16 +69,18 @@ class ProgressPlotCallback(BaseCallback):
     """Saves a reward-curve plot every N timesteps."""
 
     def __init__(self, reward_cb: RewardLoggerCallback,
-                 plot_every: int = 20_000, verbose=0):
+                 plot_every: int = 20_000,
+                 save_path: str = "plots/reward_curve.png", verbose=0):
         super().__init__(verbose)
         self._rcb      = reward_cb
         self._plot_every = plot_every
+        self._save_path  = save_path
 
     def _on_step(self) -> bool:
         if self.num_timesteps % self._plot_every == 0:
             rewards = self._rcb.get_episode_rewards()
             if rewards:
-                plot_rewards(rewards, save_path="plots/reward_curve.png")
+                plot_rewards(rewards, save_path=self._save_path)
         return True
 
 
@@ -100,28 +102,44 @@ def parse_args():
                    help="Resume training from the latest saved model or checkpoint")
     p.add_argument("--random-spawn", action="store_true",
                    help="Randomise car spawn position each episode")
+    p.add_argument("--track", type=str, default="oval",
+                   choices=["oval", "chicane"],
+                   help="Track layout to train on (default: oval)")
     return p.parse_args()
 
 
-def make_env(render: bool = False, random_spawn: bool = False):
+def track_paths(track: str) -> dict:
+    """Artifact paths for a given track. The default 'oval' track keeps the
+    original unsuffixed paths so existing models/logs stay untouched."""
+    suffix = "" if track == "oval" else f"_{track}"
+    return {
+        "model":       f"models/ppo_car{suffix}.zip",
+        "checkpoints": f"models/checkpoints{suffix}/",
+        "rewards_csv": f"logs/rewards{suffix}.csv",
+        "reward_plot": f"plots/reward_curve{suffix}.png",
+    }
+
+
+def make_env(render: bool = False, random_spawn: bool = False, track: str = "oval"):
     """Factory that returns a Monitor-wrapped CarEnv."""
     def _init():
         env = CarEnv(
             render_mode    = "human" if render else None,
             max_steps      = 2000,
             randomise_spawn= random_spawn,
+            track_type     = track,
         )
         env = Monitor(env, filename=None)
         return env
     return _init
 
 
-def find_latest_checkpoint() -> Optional[str]:
+def find_latest_checkpoint(track: str) -> Optional[str]:
+    paths = track_paths(track)
     candidates = []
-    model_file = "models/ppo_car.zip"
-    if os.path.exists(model_file):
-        candidates.append(model_file)
-    candidates.extend(glob.glob("models/checkpoints/ppo_car_*_steps.zip"))
+    if os.path.exists(paths["model"]):
+        candidates.append(paths["model"])
+    candidates.extend(glob.glob(f"{paths['checkpoints']}ppo_car_*_steps.zip"))
     if not candidates:
         return None
     return max(candidates, key=os.path.getmtime)
@@ -129,21 +147,24 @@ def find_latest_checkpoint() -> Optional[str]:
 
 def main():
     args = parse_args()
+    paths = track_paths(args.track)
 
     os.makedirs("models", exist_ok=True)
     os.makedirs("logs",   exist_ok=True)
     os.makedirs("plots",  exist_ok=True)
+    os.makedirs(paths["checkpoints"], exist_ok=True)
 
     print("=" * 55)
     print("  PPO Self-Driving Car — Training")
     print("=" * 55)
+    print(f"  Track           : {args.track}")
     print(f"  Total timesteps : {args.timesteps:,}")
     print(f"  Parallel envs   : {args.n_envs}")
     print(f"  Render          : {args.render}")
     print(f"  Random spawn    : {args.random_spawn}")
     resume_path = args.resume
     if args.resume_latest and resume_path is None:
-        resume_path = find_latest_checkpoint()
+        resume_path = find_latest_checkpoint(args.track)
         if resume_path:
             print(f"  Resuming from latest checkpoint: {resume_path}")
 
@@ -153,7 +174,7 @@ def main():
 
     # ---- vectorised env ----
     env = make_vec_env(
-        make_env(render=args.render, random_spawn=args.random_spawn),
+        make_env(render=args.render, random_spawn=args.random_spawn, track=args.track),
         n_envs=args.n_envs,
     )
 
@@ -180,13 +201,14 @@ def main():
         )
 
     # ---- callbacks ----
-    reward_logger   = RewardLogger("logs/rewards.csv")
+    reward_logger   = RewardLogger(paths["rewards_csv"])
     reward_cb       = RewardLoggerCallback(reward_logger)
-    progress_plot_cb= ProgressPlotCallback(reward_cb, plot_every=20_000)
+    progress_plot_cb= ProgressPlotCallback(reward_cb, plot_every=20_000,
+                                            save_path=paths["reward_plot"])
 
     checkpoint_cb = CheckpointCallback(
         save_freq      = 50_000,
-        save_path      = "models/checkpoints/",
+        save_path      = paths["checkpoints"],
         name_prefix    = "ppo_car",
         verbose        = 1,
     )
@@ -202,14 +224,14 @@ def main():
     )
 
     # ---- save ----
-    model.save("models/ppo_car")
-    print("\n[train] Model saved → models/ppo_car.zip")
+    model.save(paths["model"])
+    print(f"\n[train] Model saved → {paths['model']}")
 
     # ---- final plots ----
     ep_rewards = reward_cb.get_episode_rewards()
     if ep_rewards:
-        plot_rewards(ep_rewards, save_path="plots/reward_curve.png")
-        print("[train] Reward plot saved → plots/reward_curve.png")
+        plot_rewards(ep_rewards, save_path=paths["reward_plot"])
+        print(f"[train] Reward plot saved → {paths['reward_plot']}")
 
     env.close()
     print("\n[train] Done!")
