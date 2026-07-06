@@ -42,12 +42,13 @@ class Car:
         """
         Advance physics by one simulation step.
         steering : float in [-1, 1]
-        throttle : float in [ 0, 1]  (fixed to 1 for single-action mode)
+        throttle : float in [-1, 1]  (brake/accelerate speed control)
         """
-        # accelerate then friction
+        # throttle controls acceleration/braking, then friction bleeds speed off
         self.speed += throttle * self.ACCELERATION
-        self.speed  = min(self.speed, self.MAX_SPEED)
+        self.speed  = max(0.0, min(self.speed, self.MAX_SPEED))
         self.speed *= self.FRICTION
+        self.speed  = max(0.0, min(self.speed, self.MAX_SPEED))
 
         # steer
         self.angle += steering * self.TURN_RATE * (self.speed / self.MAX_SPEED + 0.1)

@@ -84,8 +84,8 @@ class HUD:
         pygame.font.init()
         self.font       = pygame.font.SysFont("monospace", font_size)
         self.small_font = pygame.font.SysFont("monospace", font_size - 4)
-        self.panel_w    = 200
-        self.panel_h    = 160
+        self.panel_w    = 220
+        self.panel_h    = 180
         self.padding    = 8
 
     def draw(self, surface: pygame.Surface,
@@ -95,7 +95,8 @@ class HUD:
              step:    int,
              episode: int,
              laps:    int,
-             steering: float):
+             steering: float,
+             throttle: float):
 
         # semi-transparent background panel
         panel = pygame.Surface((self.panel_w, self.panel_h), pygame.SRCALPHA)
@@ -107,6 +108,7 @@ class HUD:
             f"Step    : {step}",
             f"Speed   : {speed:.2f}",
             f"Steer   : {steering:+.2f}",
+            f"Throttle: {throttle:+.2f}",
             f"Reward  : {reward:+.2f}",
             f"Total R : {total_r:.1f}",
             f"Laps    : {laps}",
@@ -115,6 +117,7 @@ class HUD:
             (200, 200, 200),
             (200, 200, 200),
             (100, 220, 100),
+            (220, 180, 100),
             (220, 180, 100),
             (reward >= 0) and (100, 255, 100) or (255, 100, 100),
             (180, 180, 255),

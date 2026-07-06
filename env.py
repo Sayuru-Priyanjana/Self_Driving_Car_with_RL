@@ -8,12 +8,13 @@ Observation (5 floats, all in [0,1] or [-1,1]):
   [3] speed          (normalised 0-1)
   [4] angle to track centre-line (tanh-squashed, -1 to 1)
 
-Action (1 continuous float in [-1, 1]):
-  steering (-1 = full left, +1 = full right)
+Action (2 continuous floats in [-1, 1]):
+    steering      (-1 = full left, +1 = full right)
+    speed/throttle(-1 = brake,      +1 = full accelerate)
 
 Reward:
   +1.0  proportional to centre-line proximity (max at centre)
-  +0.2  proportional to forward speed
+    +0.5  proportional to forward speed
   +5.0  checkpoint passed
   -10.0 collision / off-road
   -0.01 per step (time penalty)
@@ -36,7 +37,7 @@ class CarEnv(gym.Env):
     metadata = {"render_modes": ["human", "rgb_array"], "render_fps": 60}
 
     # Reward weights
-    W_CENTER     =  1.0
+    W_CENTER     =  1
     W_FORWARD    =  0.5
     W_CHECKPOINT =  5.0
     W_CRASH      = -10.0
@@ -63,8 +64,8 @@ class CarEnv(gym.Env):
         high = np.array([1, 1, 1, 1,  1], dtype=np.float32)
         self.observation_space = spaces.Box(low, high, dtype=np.float32)
         self.action_space = spaces.Box(
-            low=np.array([-1.0], dtype=np.float32),
-            high=np.array([ 1.0], dtype=np.float32),
+            low=np.array([-1.0, -1.0], dtype=np.float32),
+            high=np.array([ 1.0,  1.0], dtype=np.float32),
             dtype=np.float32,
         )
 
@@ -85,6 +86,7 @@ class CarEnv(gym.Env):
         self._episode      = 0
         self._total_reward = 0.0
         self._last_action  = 0.0
+        self._last_throttle = 1.0
 
     # ------------------------------------------------------------------
     # Headless surface — allows collision checking without a display
@@ -114,6 +116,7 @@ class CarEnv(gym.Env):
         self._episode     += 1
         self._total_reward = 0.0
         self._last_action  = 0.0
+        self._last_throttle = 1.0
 
         # Verify spawn is on road (warn if not)
         if not self.track.is_on_road(sx, sy):
@@ -128,10 +131,16 @@ class CarEnv(gym.Env):
         return obs, info
 
     def step(self, action):
+        action = np.asarray(action, dtype=np.float32).reshape(-1)
         steering = float(np.clip(action[0], -1.0, 1.0))
+        if action.size >= 2:
+            speed_cmd = float(np.clip(action[1], -1.0, 1.0))
+        else:
+            speed_cmd = 1.0
         self._last_action = steering
+        self._last_throttle = speed_cmd
 
-        self.car.step(steering, throttle=1.0)
+        self.car.step(steering, throttle=speed_cmd)
         self._step += 1
         self.car.cast_sensors(self.track.wall_segments)
 
@@ -164,6 +173,7 @@ class CarEnv(gym.Env):
             "laps":         self.track.lap_count,
             "total_reward": self._total_reward,
             "speed":        self.car.speed,
+            "throttle":     self._last_throttle,
         }
 
         if self.render_mode == "human":
@@ -188,6 +198,7 @@ class CarEnv(gym.Env):
             episode  = self._episode,
             laps     = self.track.lap_count,
             steering = self._last_action,
+            throttle = self._last_throttle,
         )
 
         pygame.display.flip()

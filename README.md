@@ -96,17 +96,17 @@ Press **ESC** or close the window to exit.
 | Item | Detail |
 |---|---|
 | Observation | 5 floats: front/left/right sensors, speed, angle-to-centre |
-| Action | 1 continuous float: steering ∈ [−1, 1] |
-| Reward | +1 near centre, +0.2 forward, +5 checkpoint, −10 crash, −0.01/step |
+| Action | 2 continuous floats: steering and speed/throttle ∈ [−1, 1] |
+| Reward | +1 near centre, +0.5 forward speed, +5 checkpoint, −10 crash, −0.01/step |
 | Episode end | Crash or 2 000 steps |
 
 ### Car (`car.py`)
 Simple Euler-integration physics:
 ```
-speed  += throttle × 0.15
-speed   = min(speed, 4.0)
+speed  += throttle × 0.18
+speed   = clamp(speed, 0, 4.5)
 speed  *= 0.92   (friction)
-angle  += steering × turn_rate × (speed / max_speed)
+angle  += steering × turn_rate × (speed / max_speed + 0.1)
 x      += speed × cos(angle)
 y      += speed × sin(angle)
 ```
